@@ -1,115 +1,142 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-import datetime, os
-from keep_alive import keep_alive
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from datetime import datetime
+import logging
+import os
 
-ADMIN_ID = 6243881362  # আপনার টেলিগ্রাম ইউজার আইডি এখানে বসান
-GROUP_IDS = [-1002560574306, -1002622279798, -1002676258756]
+# --- Logging ---
+logging.basicConfig(level=logging.INFO)
 
-# ইউজার আইডি সংরক্ষণ
-def save_user_id(user_id):
-    with open("user_ids.txt", "a+") as f:
-        f.seek(0)
-        ids = f.read().splitlines()
-        if str(user_id) not in ids:
-            f.write(str(user_id) + "\n")
+# --- Replace with your bot token and admin ID ---
+BOT_TOKEN = "7772481310:AAFbajzs75hBtuNzPTHd7Ygbj8ij9cRA8Xs"
+ADMIN_ID = 6243881362  # Replace with your Telegram ID
 
-# Start
+# --- Group IDs where user must join ---
+GROUP_IDS = [
+    -1002560574306,  # @gen_z078
+    -1002622279798,  # @trick_bd07
+    -1002676258756   # @swygen
+]
+
+# --- Dictionary to save join dates ---
+user_join_dates = {}
+
+# --- Start Command ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    save_user_id(user.id)
+    user_join_dates[user.id] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     keyboard = [
         [InlineKeyboardButton("✅ Joined", callback_data='check_join')],
+        [InlineKeyboardButton("Join Group 1", url="https://t.me/gen_z078")],
+        [InlineKeyboardButton("Join Group 2", url="https://t.me/trick_bd07")],
+        [InlineKeyboardButton("Join Group 3", url="https://t.me/swygen")],
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
 
-    text = f"""স্বাগতম {user.first_name}!
-Bangla Quiz Hub - আপনার জ্ঞান বৃদ্ধির এক অনন্য প্ল্যাটফর্মে আপনাকে স্বাগতম!
-
-**শুরু করার আগে নিচের ৩টি গ্রুপে জয়েন করুন:**  
-1. [Gen Z 078](https://t.me/gen_z078)  
-2. [Trick BD 07](https://t.me/trick_bd07)  
-3. [Swygen](https://t.me/swygen)
-
-গ্রুপে জয়েন করার পর "✅ Joined" বাটনে ক্লিক করুন।
-"""
-    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-
-# Check Join
-async def check_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    joined_all = all(
-        (await context.bot.get_chat_member(group_id, user_id)).status not in ['left', 'kicked']
-        for group_id in GROUP_IDS
+    await update.message.reply_text(
+        f"স্বাগতম {user.first_name}!\n\nএই বট ব্যবহারের জন্য আপনাকে নিচের ৩টি গ্রুপে জয়েন করতে হবে।",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-    if joined_all:
-        keyboard = [
-            [InlineKeyboardButton("👤 Profile", callback_data='profile')],
-            [InlineKeyboardButton("🔗 Share", callback_data='share')],
-            [InlineKeyboardButton("🌐 Website", callback_data='website')],
-            [InlineKeyboardButton("🛠 Support", callback_data='support')],
-        ]
-        await update.callback_query.message.reply_text("✅ আপনি সফলভাবে সব গ্রুপে জয়েন করেছেন।", reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        await update.callback_query.message.reply_text("❌ দয়া করে আগে সবগুলো গ্রুপে জয়েন করুন এবং আবার চেষ্টা করুন।")
+# --- Check Join ---
+async def check_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
 
-# Callback
+    try:
+        joined_all = all(
+            (await context.bot.get_chat_member(group_id, user_id)).status in ['member', 'administrator', 'creator']
+            for group_id in GROUP_IDS
+        )
+
+        if joined_all:
+            keyboard = [
+                [InlineKeyboardButton("👤 Profile", callback_data='profile')],
+                [InlineKeyboardButton("🔗 Share", callback_data='share')],
+                [InlineKeyboardButton("🌐 Website", callback_data='website')],
+                [InlineKeyboardButton("🛠 Support", callback_data='support')],
+            ]
+            await update.callback_query.message.reply_text(
+                "✅ আপনি সফলভাবে সব গ্রুপে জয়েন করেছেন!",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        else:
+            await update.callback_query.message.reply_text(
+                "❌ দয়া করে সবগুলো গ্রুপে জয়েন করুন এবং আবার চেষ্টা করুন।"
+            )
+    except Exception as e:
+        await update.callback_query.message.reply_text(
+            f"⚠️ সমস্যা: `{e}`", parse_mode="Markdown"
+        )
+
+# --- Button Handlers ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user = query.from_user
-    if query.data == 'profile':
-        date = datetime.datetime.now().strftime("%d-%m-%Y")
-        await query.message.reply_text(f"👤 নাম: {user.first_name}\n🆔 ইউজার আইডি: {user.id}\n📅 জয়েন তারিখ: {date}\n🌍 বাংলাদেশি")
-    elif query.data == 'share':
-        await query.message.reply_text("Bangla Quiz Hub আপনার বন্ধুদের সাথে শেয়ার করুন এবং তাদের কেউ জ্ঞান অর্জন এর সুযোগ করে দিন!\n\n🔗 রেফার লিংক: https://t.me/YourBotUsername?start=")
-    elif query.data == 'website':
-        await query.message.reply_text("🌐 Bangla Quiz Hub: https://bangla-quiz-hub.netlify.app/")
-    elif query.data == 'support':
-        await query.message.reply_text("সাহায্যের জন্য যোগাযোগ করুন: @Swygen_bd")
+    user = update.effective_user
 
-# Broadcast: Admin Command
-broadcast_state = {}
+    if query.data == "profile":
+        date = user_join_dates.get(user.id, "অজানা")
+        text = f"👤 প্রোফাইল তথ্য\n\nনাম: {user.full_name}\nইউজার আইডি: `{user.id}`\nযোগদান: {date}"
+        await query.message.reply_text(text, parse_mode="Markdown")
 
-async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    elif query.data == "share":
+        ref_link = f"https://t.me/YourBotUsername?start={user.id}"
+        text = f"📢 Bangla Quiz Hub আপনার বন্ধুদের সাথে শেয়ার করুন এবং তাদের কেউ জ্ঞান অর্জনের সুযোগ দিন!\n\nরেফার লিংক:\n{ref_link}"
+        await query.message.reply_text(text)
+
+    elif query.data == "website":
+        await query.message.reply_text("🌐 Bangla Quiz Hub আপনার জ্ঞান অর্জনের এক অনন্য সঙ্গী:\nhttps://bangla-quiz-hub.netlify.app/")
+
+    elif query.data == "support":
+        await query.message.reply_text("🛠 যেকোনো সমস্যা বা প্রশ্নের জন্য আমাকে মেসেজ করুন:\n@swygen_bd")
+
+# --- Admin Notification Broadcast ---
+async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text("আপনার অনুমতি নেই।")
-    broadcast_state[update.effective_user.id] = 'awaiting'
-    await update.message.reply_text("কি পাঠাতে চান? শুধু টেক্সট লিখুন অথবা একটি ছবি পাঠান ইনলাইন বাটনসহ।")
-
-# Handle Broadcast Message or Photo
-async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID or broadcast_state.get(update.effective_user.id) != 'awaiting':
+        await update.message.reply_text("❌ আপনি এই কমান্ড চালাতে পারবেন না।")
         return
 
-    with open("user_ids.txt") as f:
-        ids = [int(i.strip()) for i in f if i.strip().isdigit()]
+    if not update.message.reply_to_message:
+        await update.message.reply_text("একটি ছবি / টেক্সটের রিপ্লাই দিয়ে `/send` লিখুন।")
+        return
 
-    keyboard = InlineKeyboardMarkup(InlineKeyboardButton("🌐 Visit Website", url="https://bangla-quiz-hub.netlify.app"))
+    msg = update.message.reply_to_message
+    users = list(user_join_dates.keys())
 
-    for uid in ids:
+    sent = 0
+    for uid in users:
         try:
-            if update.message.photo:
-                file_id = update.message.photo[-1].file_id
-                await context.bot.send_photo(uid, photo=file_id, caption=update.message.caption, reply_markup=keyboard)
+            if msg.photo:
+                await context.bot.send_photo(
+                    chat_id=uid,
+                    photo=msg.photo[-1].file_id,
+                    caption=msg.caption or "নোটিফিকেশন",
+                    reply_markup=msg.reply_markup
+                )
             else:
-                await context.bot.send_message(uid, update.message.text, reply_markup=keyboard)
+                await context.bot.send_message(
+                    chat_id=uid,
+                    text=msg.text or msg.caption,
+                    reply_markup=msg.reply_markup
+                )
+            sent += 1
         except:
-            continue
+            pass
 
-    await update.message.reply_text("✅ সকল ইউজারকে নোটিফিকেশন পাঠানো হয়েছে।")
-    broadcast_state.pop(update.effective_user.id, None)
+    await update.message.reply_text(f"✅ পাঠানো হয়েছে: {sent} জনকে")
 
-# Main
+# --- Keep Alive (Optional for Replit) ---
+from keep_alive import keep_alive
+keep_alive()
+
+# --- Main Function ---
 if __name__ == '__main__':
-    keep_alive()
-    app = ApplicationBuilder().token("7772481310:AAFbajzs75hBtuNzPTHd7Ygbj8ij9cRA8Xs").build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("broadcast", broadcast))
-    app.add_handler(CallbackQueryHandler(check_join, pattern='check_join'))
+    app.add_handler(CommandHandler("send", admin_broadcast))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT | filters.PHOTO, handle_broadcast))
-    print("Bot is running...")
+    app.add_handler(CallbackQueryHandler(check_join, pattern="check_join"))
+
+    print("✅ Bot is running...")
     app.run_polling()
